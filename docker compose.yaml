@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  # 1. قاعدة البيانات (PostgreSQL)
+  postgres_db:
+    image: postgres:15-alpine
+    container_name: postgres_container
+    environment:
+      POSTGRES_USER: myuser
+      POSTGRES_PASSWORD: mypassword
+      POSTGRES_DB: mydatabase
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - de_network
+
+  # 2. واجهة إدارة قاعدة البيانات (pgAdmin)
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: pgadmin_container
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: adminpassword
+    ports:
+      - "8080:80"
+    depends_on:
+      - postgres_db
+    networks:
+      - de_network
+
+  # 3. أداة الجدولة والتحكم (Kestra)
+  kestra:
+    image: kestra/kestra:latest
+    container_name: kestra_container
+    command: server local
+    environment:
+      KESTRA_CONFIGURATION: |
+        kestra:
+          queue:
+            type: inmemory
+          repository:
+            type: inmemory
+    ports:
+      - "8081:8081"
+    volumes:
+      # ربط دكر داخل دكر لكي تتمكن Kestra من تشغيل حاويات بايثون ديناميكياً
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - postgres_db
+    networks:
+      - de_network
+
+volumes:
+  postgres_data:
+
+networks:
+  de_network:
+    name: de_network
