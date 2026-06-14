@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # 1. خدمة قاعدة البيانات (PostgreSQL)
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_db
+    environment:
+      POSTGRES_USER: kestra_user
+      POSTGRES_PASSWORD: kestra_password
+      POSTGRES_DB: kestra_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - data_network
+    restart: unless-stopped
+
+  # 2. خدمة إدارة قاعدة البيانات (pgAdmin)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: pgadmin_ui
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@admin.com
+      PGADMIN_DEFAULT_PASSWORD: admin_password
+    ports:
+      - "8080:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    networks:
+      - data_network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+  # 3. خدمة إدارة التدفقات (Kestra)
+  kestra:
+    image: kestra/kestra:latest-full
+    container_name: kestra_orchestrator
+    entrypoint: []
+    command: server local
+    environment:
+      # إعدادات ربط Kestra بقاعدة البيانات
+      KESTRA_CONFIGURATION: |
+        kestra:
+          repository:
+            type: postgres
+        micronaut:
+          datasources:
+            default:
+              url: jdbc:postgresql://postgres:5432/kestra_db
+              username: kestra_user
+              password: kestra_password
+              driverClassName: org.postgresql.Driver
+    ports:
+      - "8001:8001"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # لتشغيل حاويات Docker داخل تاسكات Kestra إذا لزم الأمر
+      - kestra_data:/app/storage
+    networks:
+      - data_network
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+    driver: local
+  pgadmin_data:
+    driver: local
+  kestra_data:
+    driver: local
+
+networks:
+  data_network:
+    driver: bridge
